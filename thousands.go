@@ -1,14 +1,16 @@
-// thousands.Int is an int implementing fmt.Formatter with the int's digits separated into groups of 3 by a separator.
+// thousands.Int is an int implementing fmt.Formatter with the int's digits separated into groups by a separator.
 // also..
-// it can replace trailing groups with the appropriate suffix letter.
-// the scaling can be automatically varied to retain precision.
+// it can replace a number of trailing groups with the appropriate suffix letter.
+// can automatically vary the replacement to retain precision.
 package thousands
 
 import "fmt"
-import "strings"
+import "io"
 import "strconv"
 
-var suffixes = []byte(string("kMGTPEZY"))
+var suffixes = []byte(string("ikMGTPEZY"))
+
+var seps = [...][]byte{[]byte(string(" ")),[]byte(string(",")),[]byte(string("."))}
 
 type Int int
 
@@ -62,31 +64,30 @@ func (v Int) Format(f fmt.State, r rune) {
 	switch r {
 	case 's':
 		if f.Flag('-') {
-			f.Write(CharGroupRTL(sr, '.', decimals))
+			CharGroupRTL(f, sr, seps[2])
 		} else {
-			f.Write(CharGroupRTL(sr, ',', decimals))
+			CharGroupRTL(f, sr, seps[1])
 		}
 	default:
-		f.Write(CharGroupRTL(sr, ' ', decimals))
+		CharGroupRTL(f, sr, seps[0])
 	}
-	if p > 0 && p < len(suffixes) {
-		f.Write(suffixes[p-1 : p])
+	if p > 0 && p <= len(suffixes) {
+		f.Write(suffixes[p : p+1])
 		if f.Flag('#') {
-			f.Write([]byte("i"))
+			f.Write(suffixes[0:1])
 		}
 	}
 }
 
-func CharGroupRTL(s string, d rune, c int) []byte {
-	var bs strings.Builder
+func CharGroupRTL(bs io.Writer, s string, d []byte) {
 	lsmo := len(s) - 1
 	for i, r := range s {
-		bs.WriteRune(r)
-		if i < lsmo && (lsmo-i)%c == 0 {
-			bs.WriteRune(d)
+		bs.Write([]byte(string(r)))
+		if i < lsmo && (lsmo-i)%decimals == 0 {
+			bs.Write(d)
 		}
 	}
-	return []byte(bs.String())
+	return
 }
 
 func power10(n uint8) uint {
