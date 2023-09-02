@@ -1,26 +1,26 @@
-// thousands.Int is an int implementing fmt.Formatter with the int's digits separated into groups by a separator.
-// also..
-// it can replace a number of trailing groups with the appropriate suffix letter.
-// can automatically vary the replacement to retain precision.
 package thousands
 
 import "fmt"
 import "io"
 import "strconv"
 
-var suffixes = []byte(string("ikMGTPEZY"))
+const suffixes = "kiMiGiTiPiEiZiYi"
 
-var seps = [...][]byte{[]byte(string(" ")),[]byte(string(",")),[]byte(string("."))}
+var (
+	sep = []byte(string(" "))
+	Sep = []byte(string(","))
+	AltSep = []byte(string("."))
+)
 
 type Int int
 
 const (
-	decimals = 3
-	binaries = 10
+	decimalDigits = 3
+	binaryDigit = 10
 	defWidth = 5
 )
 
-// '%s' returns using a char separator (',' or '%+s' for alt sep '.')
+// '%s' returns using a char separator (',' or '%-s' for alt sep '.')
 // '%v' uses narrow space separator.
 // Width specifies number of thousand blocks to remove.
 // Precision specifies displayed digits (overrides width) default:4 (this is only approx for binary)
@@ -46,35 +46,40 @@ func (v Int) Format(f fmt.State, r rune) {
 		w = defWidth
 	}
 	if f.Flag('#') {
-		s >>= binaries * p
+		s >>= binaryDigit * p
 		if !pset {
-			m := (w+binaries)%binaries - w
-			p += m
-			s >>= m * binaries
+			m := (w+binaryDigit)%binaryDigit - w
+			if m>0{
+				p += m
+				s >>= m * binaryDigit
+			}
 		}
 	} else {
-		s /= power10(uint8(p * decimals))
+		s /= power10(uint8(p * decimalDigits))
 		if !pset {
-			m := (w+decimals)%decimals - w
-			p += m
-			s /= power10(uint8(m))
+			m := (w+decimalDigits)%decimalDigits - w
+			if m>0{
+				p += m
+				s /= power10(uint8(m))
+			}
 		}
 	}
 	sr := strconv.FormatUint(uint64(s), 10)
 	switch r {
 	case 's':
 		if f.Flag('-') {
-			CharGroupRTL(f, sr, seps[2])
+			CharGroupRTL(f, sr, AltSep)
 		} else {
-			CharGroupRTL(f, sr, seps[1])
+			CharGroupRTL(f, sr, Sep)
 		}
 	default:
-		CharGroupRTL(f, sr, seps[0])
+		CharGroupRTL(f, sr, sep)
 	}
-	if p > 0 && p <= len(suffixes) {
-		f.Write(suffixes[p : p+1])
+	if p > 0 && p <= len(suffixes)>>1 {
 		if f.Flag('#') {
-			f.Write(suffixes[0:1])
+			f.Write([]byte(suffixes[p<<1-2 : p<<1]))
+		}else{
+			f.Write([]byte(suffixes[p<<1-2:p<<1-1]))
 		}
 	}
 }
@@ -83,7 +88,7 @@ func CharGroupRTL(bs io.Writer, s string, d []byte) {
 	lsmo := len(s) - 1
 	for i, r := range s {
 		bs.Write([]byte(string(r)))
-		if i < lsmo && (lsmo-i)%decimals == 0 {
+		if i < lsmo && (lsmo-i)%decimalDigits == 0 {
 			bs.Write(d)
 		}
 	}
